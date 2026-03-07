@@ -5,8 +5,13 @@
  * @returns {AudioBuffer | WebGLBuffer}
  */
 function bindAttBuffer(buffer, attName, dataSize) {
+
+    let attrib = gl.getAttribLocation(program, attName);
+    
+    // Safety check: if the attribute isn't in this shader, just skip it
+    if (attrib === -1) return buffer; 
+
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    let attrib = gl.getAttribLocation(program,  attName);
     gl.vertexAttribPointer(attrib, dataSize, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(attrib);
 
@@ -42,7 +47,12 @@ function updateAttBuffer(buffer, data) {
  * @param data The data to update it with
  */
 function updateMat4Uniform(matName, data) {
-    gl.uniformMatrix4fv(gl.getUniformLocation(program, matName), false, flatten(data));
+
+    let loc = gl.getUniformLocation(program, matName);
+    // Safety check: if the uniform isn't in this shader, don't try to set it
+    if (loc) {
+        gl.uniformMatrix4fv(loc, false, flatten(data));
+    }
 
 }
 
@@ -52,7 +62,12 @@ function updateMat4Uniform(matName, data) {
  * @param data The data to update it with
  */
 function updateVec4Uniform(vecName, data) {
-    gl.uniform4fv(gl.getUniformLocation(program, vecName), flatten(data));
+    
+    let loc = gl.getUniformLocation(program, vecName);
+    if (loc) {
+
+        gl.uniform4fv(loc, flatten(data));
+    }
 }
 
 /**
@@ -61,7 +76,12 @@ function updateVec4Uniform(vecName, data) {
  * @param data The data to update it with
  */
 function updateVec3Uniform(vecName, data) {
-    gl.uniform3fv(gl.getUniformLocation(program, vecName), flatten(data));
+    
+    let loc = gl.getUniformLocation(program, vecName);
+    if (loc) {
+
+        gl.uniform3fv(loc, flatten(data));
+    }
 }
 
 /**
@@ -79,7 +99,12 @@ function updateFloatUniform(floatName, data) {
  * @param data The data to update it with
  */
 function updateIntUniform(intName, data) {
-    gl.uniform1i(gl.getUniformLocation(program, intName), data);
+    
+    let loc = gl.getUniformLocation(program, intName);
+    if (loc) {
+        
+        gl.uniform1i(loc, data);
+    }
 }
 
 /**

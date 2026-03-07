@@ -35,18 +35,34 @@ function init_water() {
 let prevTime = 0;
 let scene_time = 0;
 function draw_water(timestamp) {
-    let deltaTime = (timestamp - prevTime) / 1000; // time delta between frames in seconds
+
+    gl.useProgram(water_program);
+    program = water_program;
+
+    let deltaTime = (timestamp - prevTime) / 1000;
     if (Number.isFinite(deltaTime)) {
         scene_time += deltaTime;
     }
     prevTime = timestamp;
-    gl.useProgram(water_program);
-    program = water_program;
-    //updateAttBuffer(vertBuffer, waterVerts);
+
     bindAttBuffer(water.vBuffer, "vPosition", 4);
     updateMat4Uniform("projectionMatrix", projectionMatrix);
     updateMat4Uniform("cameraViewMatrix", cameraViewMatrix);
     updateMat4Uniform("transformMatrix", translate(0, water_height, 0));
+
+    updateMat4Uniform("lightViewMatrix", lightViewMatrix);
+    updateMat4Uniform("lightProjectionMatrix", lightProjectionMatrix);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture); 
+    updateIntUniform("shadowMap", 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, wave_texture);
+    updateIntUniform("waveTexture", 2);
+
+    updateIntUniform("skybox", 3);
+
     updateVec4Uniform("lightPosition", vec4(lightPos[0], lightPos[1], lightPos[2], 1.0));
     updateVec3Uniform("spotlight_position", vec3(spotlightPosition));
     updateVec3Uniform("spotlight_angle", vec3(spotlightAngle));
@@ -55,12 +71,8 @@ function draw_water(timestamp) {
     updateUintUniform("wave_count", wave_count);
     updateVec3Uniform("light_color", vec3(pointLightProperties.specular[0], pointLightProperties.specular[1], pointLightProperties.specular[2]));
     updateVec3Uniform("spotlight_color", vec3(spotlightProperties.specular[0], spotlightProperties.specular[1], spotlightProperties.specular[2]));
-    gl.bindTexture(gl.TEXTURE_2D, wave_texture);
-    gl.uniform1i(gl.getUniformLocation(water_program, "waveTexture"), 1);
-    gl.uniform1i(gl.getUniformLocation(water_program, "skybox"), 3);
 
-    let render_mode = gl.TRIANGLES;
-    if (useWireframe) render_mode = gl.LINE_LOOP;
+    let render_mode = useWireframe ? gl.LINE_LOOP : gl.TRIANGLES;
 
     for (let i = 0; i < water.vCount; i += 3)
         gl.drawArrays(render_mode, i, 3);
@@ -130,7 +142,7 @@ function UpdateShaderWaves() {
         floatArray[lowerPixelBase + 2] = curr_waves[i].phase;
     }
 
-    gl.activeTexture(gl.TEXTURE1);
+    gl.activeTexture(gl.TEXTURE2);
     wave_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, wave_texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, wave_count, 2, 0, gl.RGB, gl.FLOAT, floatArray);
@@ -140,6 +152,7 @@ function UpdateShaderWaves() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    gl.uniform1i(gl.getUniformLocation(water_program, "waveTexture"), 1);
+    gl.useProgram(water_program);
+    gl.uniform1i(gl.getUniformLocation(water_program, "waveTexture"), 2);
 
 }

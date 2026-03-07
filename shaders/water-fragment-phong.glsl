@@ -1,5 +1,8 @@
 #version 300 es
 
+uniform sampler2D shadowMap;
+in vec4 fPositionShadow;
+
 precision highp float;
 // shared uniforms
 uniform float time;
@@ -93,9 +96,20 @@ void main() {
     //Is = Ls Ks dot(V, R)^a
     vec4 specular = lColor * wColor * pow(max(dot(vec4(vertex, 1.0), R), 0.0), 20.0);
 
-    vec4 fColor = diffuse + specular;
-    fColor.a = 1.0;
+    vec4 ambient = vec4(water_color * 0.2, 1.0);
 
-    fragColor = fColor;
+    vec3 shadowCoord = (fPositionShadow.xyz / fPositionShadow.w) * 0.5 + 0.5;
+    float closestDepth = texture(shadowMap, shadowCoord.xy).r;
+    float currentDepth = shadowCoord.z;
 
+    float bias = 0.005;  
+    float shadow = (currentDepth - bias > closestDepth) ? 0.3 : 1.0;
+
+    // We explicitly define the ambient and albedo here to match your vars
+    vec3 finalAlbedo = water_color.rgb;
+    vec4 ambientTerm = vec4(finalAlbedo * 0.2, 1.0);
+
+    vec4 finalColor = ambientTerm + (diffuse + specular) * shadow;
+    
+    fragColor = vec4(finalColor.rgb, 1.0);
 }

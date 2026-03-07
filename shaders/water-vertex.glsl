@@ -1,5 +1,8 @@
 #version 300 es
 
+uniform mat4 lightViewMatrix;
+uniform mat4 lightProjectionMatrix;
+
 in vec4 vPosition;
 uniform float time;
 uniform vec4 cameraPos;
@@ -10,6 +13,8 @@ uniform mat4 transformMatrix;
 uniform mat4 projectionMatrix;
 uniform vec4 lightPosition;
 uniform vec3 spotlightPosition;
+
+out vec4 fPositionShadow;
 
 out vec3 vertex, light_vector, spotlight_vector;
 struct Wave {
@@ -71,6 +76,8 @@ void main() {
 	float dist_factor = clamp((fadeEnd - d) / (fadeEnd - fadeStart), 0.0, 1.0);
 	worldVert.y += displacement * pow(dist_factor, 0.9);
 
+	fPositionShadow = lightProjectionMatrix * lightViewMatrix * worldVert;
+
 	worldVert = cameraViewMatrix * worldVert;
 
 	vertex = worldVert.xyz;
@@ -79,5 +86,4 @@ void main() {
 
 	light_vector = normalize((cameraViewMatrix * lightPosition).xyz - vertex.xyz);
 	spotlight_vector = normalize((cameraViewMatrix * vec4(spotlightPosition, 1.0)).xyz - vertex.xyz);
-
 }

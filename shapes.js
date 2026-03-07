@@ -41,4 +41,3 @@ function triangleFlat(a, b, c, verts) {
     verts.push(second);
     verts.push(third);
 }
-

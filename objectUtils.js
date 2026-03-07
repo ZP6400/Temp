@@ -1,5 +1,5 @@
-
 let skyboxSize = 500.0;
+
 function initSkybox() {
     skygram = initShadersFromFiles(gl, "shaders/skybox-vertex.glsl", "shaders/skybox-fragment.glsl");
     gl.useProgram(skygram);
@@ -66,7 +66,9 @@ function initSkybox() {
 function drawSkybox() {
 
     gl.useProgram(skygram);
-    program = skygram
+    let oldProgram = program;
+    program = skygram;
+
     updateMat4Uniform("modelMatrix", mat4());
     updateMat4Uniform("projectionMatrix", projectionMatrix);
     updateMat4Uniform("viewMatrix", cameraViewMatrix);
@@ -81,71 +83,84 @@ function drawSkybox() {
         gl.uniform1i(gl.getUniformLocation(program, "tex"), 0);
         gl.drawArrays(gl.TRIANGLES, i * 6, 6);
     }
+
+    program = oldProgram;
 }
 
 let boat_water_offset = 0;
-function drawModels() {
+function drawModels(vMatrix, pMatrix, isShadowPass) {
 
-    use_phong();
-    //Getting ready to draw models
-    //HANDLING ANIMATIONS
-    if (isRotating) {
+    updateMat4Uniform("lightViewMatrix", lightViewMatrix);
+    updateMat4Uniform("lightProjectionMatrix", lightProjectionMatrix);
+    updateIntUniform("shadowMap", 1);
 
-        currentPropRotation += 10.0;
-        boatRotation += 0.5;
-    }
+    updateMat4Uniform("cameraViewMatrix", vMatrix);
+    updateMat4Uniform("projectionMatrix", pMatrix);
 
     let currentDiveY = 0;
 
-    if (isDiving) {
+    if (!isShadowPass) {
+        
+        if (isRotating) {
 
-        diveTimer += diveSpeed;
-        currentDiveY = -Math.sin(diveTimer) * diveDepth;
-
-        if (diveTimer >= Math.PI) {
-
-            isDiving = false;
-            currentDiveY = 0;
-        }
-    } else {
-        boat_water_offset = -3;
-        for (let w_ind in curr_waves) {
-            let w = curr_waves[w_ind];
-            let phase_time = (w.phase + scene_time) * w.phase_mod;
-            let pointMag = Math.exp(
-                Math.sin(dot(vec2(w.directionX, w.directionY), vec2(boatX, boatZ)) * w.frequency + phase_time) - 1.0);
-            boat_water_offset += w.amplitude * pointMag;
-        }
-    }
-
-    if (isZooming) {
-
-        zoomProgress += zoomSpeed;
-        if (zoomProgress > 1.0) {
-
-            zoomProgress = 1.0;
+        currentPropRotation += 10.0;
+        boatRotation += 1.0;
         }
 
-        let from, to;
 
-        if (cameraIsZoomedIn) {
-            from = startCam;
-            to = targetCam;
-        }
+        if (isDiving) {
+
+            diveTimer += diveSpeed;
+            currentDiveY = -Math.sin(diveTimer) * diveDepth;
+
+            if (diveTimer >= Math.PI) {
+
+                isDiving = false;
+                currentDiveY = 0;
+            }
+        } 
         else {
 
-            from = targetCam;
-            to = startCam;
+            boat_water_offset = -3;
+            for (let w_ind in curr_waves) {
+                
+                let w = curr_waves[w_ind];
+                let phase_time = (w.phase + scene_time) * w.phase_mod;
+                let pointMag = Math.exp(
+                    Math.sin(dot(vec2(w.directionX, w.directionY), vec2(boatX, boatZ)) * w.frequency + phase_time) - 1.0);
+                boat_water_offset += w.amplitude * pointMag;
+            }
         }
 
-        camX = from.x + (to.x - from.x) * zoomProgress;
-        camY = from.y + (to.y - from.y) * zoomProgress;
-        camZ = from.z + (to.z - from.z) * zoomProgress;
-        camYaw = from.yaw + (to.yaw - from.yaw) * zoomProgress;
+        if (isZooming) {
 
-        if (zoomProgress >= 1.0) {
+            zoomProgress += zoomSpeed;
+            if (zoomProgress > 1.0) {
 
-            isZooming = false;
+                zoomProgress = 1.0;
+            }
+
+            let from, to;
+
+            if (cameraIsZoomedIn) {
+                from = startCam;
+                to = targetCam;
+            }
+            else {
+
+                from = targetCam;
+                to = startCam;
+            }
+
+            camX = from.x + (to.x - from.x) * zoomProgress;
+            camY = from.y + (to.y - from.y) * zoomProgress;
+            camZ = from.z + (to.z - from.z) * zoomProgress;
+            camYaw = from.yaw + (to.yaw - from.yaw) * zoomProgress;
+
+            if (zoomProgress >= 1.0) {
+
+                isZooming = false;
+            }
         }
     }
 
@@ -219,24 +234,36 @@ function initBuffers(model) {
         face.faceTexCoords.forEach(t => texCoords.get(face.material).push(t));
     });
 
-    normals.forEach((list, k) => {
-        if (list.length === 0) { // generate flat normals if the model doesn't have any normals specified
-            let fakeNormals = generateFlatNormals(vertices.get(k));
-            normals.set(k, fakeNormals);
-        }
-    })
-
-    model.vBuffer = initBuffer();
-    model.nBuffer = initBuffer();
-    model.tBuffer = initBuffer();
-
     model.materialVerts = vertices;
     model.materialNormals = normals;
     model.materialTexCoords = texCoords;
 
-    console.log(model.materialVerts)
-    console.log(model.materialNormals)
-    console.log(model.materialTexCoords)
+    let allVerts = [];
+    let allNorms = [];
+    model.materialCounts = []; 
+
+    for (let [mat_name, verts] of model.materialVerts) {
+        let norms = model.materialNormals.get(mat_name);
+        
+        if (!norms || norms.length === 0) {
+            norms = generateFlatNormals(verts);
+        }
+
+        model.materialCounts.push({
+            name: mat_name,
+            start: allVerts.length, 
+            count: verts.length
+        });
+
+        allVerts = allVerts.concat(verts);
+        allNorms = allNorms.concat(norms);
+    }
+
+    model.vBuffer = initBuffer();
+    model.nBuffer = initBuffer();
+    
+    updateAttBuffer(model.vBuffer, allVerts);
+    updateAttBuffer(model.nBuffer, allNorms);
 
     if (model.textured) {
         model.texture = loadBoatTexture(model.imagePath);
@@ -272,37 +299,21 @@ function generateFlatNormals(vertices) {
 }
 
 function drawModel(model, modelMatrix, specularColor, diffuseColor) {
+    
     updateMat4Uniform("transformMatrix", modelMatrix);
+    
     bindAttBuffer(model.vBuffer, "vPosition", 4);
     bindAttBuffer(model.nBuffer, "vNormal", 4);
-    // if (model.textured) {
-    //     bindAttBuffer(model.tBuffer, "vTexCoord", 2);
-    // }
-    // group render calls by material to reduce API calls
-    for (let [mat_name, verts] of model.materialVerts) {
-        updateAttBuffer(model.vBuffer, verts);
-        updateAttBuffer(model.nBuffer, model.materialNormals.get(mat_name));
-        // if (model.textured) {
-        //     updateAttBuffer(model.tBuffer, model.materialTexCoords.get(mat_name));
-        //     gl.activeTexture(gl.TEXTURE5);
-        //     gl.bindTexture(gl.TEXTURE_2D, model.texture);
-        //     gl.uniform1i(gl.getUniformLocation(program, "modelTexture"), 5);
-        // } else {
-        //     gl.activeTexture(gl.TEXTURE5);
-        //     gl.bindTexture(gl.TEXTURE_2D, null);
-        // }
 
+    for (let part of model.materialCounts) {
         updateFloatUniform("shininess", 20.0);
-        if (mat_name) {
-            specularColor = model.specularMap.get(mat_name);
-            diffuseColor = model.diffuseMap.get(mat_name);
-        }
+        
         updateVec4Uniform("materialSpecular", specularColor);
         updateVec4Uniform("materialDiffuse", diffuseColor);
-        updateVec4Uniform("materialAmbient", vec4(0.1, 0.1, 0.1, 1));
-        gl.drawArrays(gl.TRIANGLES, 0, verts.length);
-    }
+        updateVec4Uniform("materialAmbient", vec4(0.2, 0.2, 0.2, 1.0));
 
+        gl.drawArrays(gl.TRIANGLES, part.start, part.count);
+    }
 }
 
 function loadBoatTexture(url) {
@@ -341,4 +352,22 @@ function loadTexture(url) {
 
     image.src = url;
     return texture;
+}
+
+
+function initShadowBuffer() {
+
+    shadowFramebuffer = gl.createFramebuffer();
+    shadowDepthTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, shadowSize, shadowSize, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadowDepthTexture, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }

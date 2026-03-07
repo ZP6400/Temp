@@ -48,7 +48,14 @@ let targetCam = { x: -35.0, y: -45.0, z: 45.0, yaw: -45.0 };
 let lightPos = vec3(-10, 100, -500);
 
 let projectionMatrix;
-let cameraViewMatrix;
+let cameraViewMatrix = mat4();
+
+let lightViewMatrix = mat4();
+let lightProjectionMatrix = mat4();
+
+let shadowSize = 1024;
+let shadowFramebuffer;
+let shadowDepthTexture;
 
 function main() {
 
@@ -63,7 +70,7 @@ function main() {
         return;
     }
 
-
+    initShadowBuffer();
     initSkybox();
     initModels();
     init_water();
@@ -73,10 +80,6 @@ function main() {
     gl.enable(gl.DEPTH_TEST);
 
     projectionMatrix = perspective(60, canvas.width/canvas.height, 0.1, 2000.00);
-
-
-
-
 
     //ESTABLISHING ONKEYDOWN EVENTS
     window.addEventListener("keydown", handleKeyPress);
@@ -88,116 +91,71 @@ function main() {
 }
 
 
-
-
-
-
-
-
 function render(timestamp) {
 
+    let eye = vec3(camX, camY, camZ);
+    let at = vec3(camX + Math.cos(camYaw * Math.PI/180), camY, camZ + Math.sin(camYaw * Math.PI/180));
+    cameraViewMatrix = lookAt(eye, at, vec3(0, 1, 0));
 
+    lightViewMatrix = lookAt(lightPos, vec3(boatX, boatY, boatZ), vec3(0, 1, 0));
+    lightProjectionMatrix = perspective(45, 1.0, 1.0, 2000.0);
 
-    //CLEARING CANVAS AND INITIALIZING NEEDED VARIABLES
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFramebuffer);
+    gl.viewport(0, 0, shadowSize, shadowSize);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+
+    drawModels(lightViewMatrix, lightProjectionMatrix, true); 
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
+    gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    let radians = camYaw * Math.PI / 180.0;
-    let eye = vec3(camX, camY, camZ);
-
-    let atX = camX + Math.cos(radians);
-    let atZ = camZ + Math.sin(radians);
-
-    //Makes it so camera is basically looking straight ahead
-    let at = vec3(atX, camY, atZ);
-
-    let up = vec3(0, 1, 0);
-    cameraViewMatrix = lookAt(eye, at, up);
-
-
-    //DRAWING THE SKYBOX
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture);
+    
     drawSkybox();
-    drawModels();
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture);
+    use_phong(); 
+    drawModels(cameraViewMatrix, projectionMatrix, false);
+
+    program = water_program; 
     draw_water(timestamp);
 
     requestAnimationFrame(render);
 }
+
+
 function handleKeyPress(event) {
+
     let step = 1.0;
-    let angleStep = 2.0;
 
     switch(event.key.toLowerCase()) {
 
-        //Control x, y, and z camera movement
-        case 'w':
-            camZ -= step;
-            break;
-        case 's':
-            camZ += step;
-            break;
-        case 'a':
-            camX -= step;
-            break;
-        case 'd':
-            camX += step;
-            break;
-        case 'q':
-            event.preventDefault();
-            camY += step;
-            break;
-        case 'e':
-            camY -= step;
-            break;
-
-        //Pivot the camera left and right
-        case 'z':
-            camYaw -= angleStep;
-            break;
-        case 'c':
-            camYaw += angleStep;
-            break;
-
         //Control x, y and x boat movement
-        case 'u':
+        case 'w':
             boatZ -= step;
             break;
-        case 'j':
+        case 'a':
             boatZ += step;
             break;
-        case 'y':
+        case 's':
             boatX -= step;
             break;
-        case 'h':
+        case 'd':
             boatX += step;
             break;
-        case 't':
+        case 'q':
             boatY += step;
             break;
-        case 'g':
+        case 'e':
             boatY -= step;
             break;
 
-        case 'p':
-
-            let radians = camYaw * Math.PI / 180.0;
-            let atX = camX + Math.cos(radians);
-            let atZ = camZ + Math.sin(radians);
-            console.log("Eye: (" + camX.toFixed(2) + ", " + camY.toFixed(2) + ", " + camZ.toFixed(2) + ")");
-            console.log("Looking At: (" + atX.toFixed(2) + ", " + camY.toFixed(2) + ", " + atZ.toFixed(2) + ")");
-            console.log("Boat: (" + boatX.toFixed(2) + ", " + boatY.toFixed(2) + ", " + boatZ.toFixed(2) + ")");
-            break;
-
-        case 'r':
-
-            //Reset camera and boat to how they were before
-            camX = startCam.x;
-            camY = startCam.y;
-            camZ = startCam.z;
-            camYaw = startCam.yaw;
-            boatX = -20.0;
-            boatY = -52.0;
-            boatZ = 29.0;
-            break;
 
         case 'shift':
 
@@ -215,7 +173,7 @@ function handleKeyPress(event) {
             }
             break;
 
-        case 'f':
+        case 'c':
             if (!isZooming) {
 
                 isZooming = true;
@@ -223,9 +181,26 @@ function handleKeyPress(event) {
                 cameraIsZoomedIn = !cameraIsZoomedIn;
             }
             break;
+
         case 'n':
             UpdateShaderWaves();
             break;
+
+        case 'i':
+            lightPos[1] += 5.0;
+            break;
+        case 'k':
+            lightPos[1] -= 5.0;
+            break;
+        case 'l':
+            lightPos[0] += 5.0;
+            break;
+        case 'j':
+            lightPos[0] -= 5.0;
+            break;
+        case 'o':
+            lightPos[2] += 5.0;
+        case 'p':
+            lightPos[2] -= 5.0;
     }
 }
-

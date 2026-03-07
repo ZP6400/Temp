@@ -1,55 +1,46 @@
 #version 300 es
-
 precision mediump float;
 
+in vec3 light_vector;
+in vec3 normal;
+in vec3 vertex; 
+in vec2 fTexCoord;
+in vec4 fPositionShadow;
+
 uniform vec4 lightDiffuse, lightSpecular, lightAmbient;
-uniform vec4 spotlightDiffuse, spotlightSpecular, spotlightAmbient;
 uniform vec4 materialDiffuse, materialSpecular, materialAmbient;
 uniform float shininess;
-in vec3 vertex, light_vector, normal;
-in vec3 spotlight_vector;
-uniform vec3 spotlightAngle;
-in vec2 fTexCoord;
-uniform sampler2D modelTexture;
+uniform sampler2D shadowMap;
+
 out vec4 fragColor;
-void main()
-{
-    vec4 fColor = vec4(0.0);
-    // first, handle the point light
-    //Diffuse
-    //Id = Ld kd dot(l • n)
-    vec4 diffuse = lightDiffuse * materialDiffuse * dot(light_vector, normal);
 
-    //Specular
-    //r = (2 (l · n ) n) - l
-    vec3 R = 2.0 * (dot(light_vector, normal) * normal) - light_vector;
+float calculateShadow() {
 
-    //Is = Ls Ks dot(V, R)^a
-    vec4 specular = lightSpecular * materialSpecular * pow(max(dot(vertex, R), 0.0), shininess);
+    vec3 shadowCoord = (fPositionShadow.xyz / fPositionShadow.w) * 0.5 + 0.5;
+    float closestDepth = texture(shadowMap, shadowCoord.xy).r;
+    float currentDepth = shadowCoord.z;
+    
+    float bias = 0.0001; 
+    return currentDepth - bias > closestDepth ? 0.5 : 1.0; 
+}
 
-    //Ambient
-    //Ia = Laka
+void main() {
+
+    float shadow = calculateShadow();
+
+    vec3 N = normalize(normal);
+    vec3 L = normalize(light_vector);
+    vec3 V = normalize(vertex); // This is your 'view' vector
+
     vec4 ambient = lightAmbient * materialAmbient;
 
-    fColor += diffuse + specular + ambient;
+    float kd = max(dot(L, N), 0.0);
+    vec4 diffuse = kd * (lightDiffuse * materialDiffuse);
 
-    // next, handle the spotlight
-//
-//    if(dot(spotlight_vector, -spotlightAngle) > 0.97)
-//    {
-        R = (2.0 * dot(spotlight_vector, normal) * normal) - spotlight_vector;
-        diffuse = spotlightDiffuse * materialDiffuse * dot(spotlight_vector, normal);
-        specular = spotlightSpecular * materialSpecular * pow(max(dot(vertex, R), 0.0), shininess);
-//    }
+    vec3 R = reflect(-L, N);
+    float ks = pow(max(dot(R, V), 0.0), shininess);
+    vec4 specular = ks * (lightSpecular * materialSpecular);
 
-
-    //Ambient
-    //lightAmbient * material ambient coeff
-    ambient = spotlightAmbient * materialAmbient;
-
-    fColor += diffuse + specular + ambient;
-    fColor *= texture(modelTexture, fTexCoord);
-    fColor.a = 1.0;
-    fragColor = fColor;
-
+    fragColor = vec4((ambient + (diffuse + specular) * shadow).rgb, 1.0);
+    fragColor.a = 1.0;
 }

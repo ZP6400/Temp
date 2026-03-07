@@ -73,19 +73,16 @@ function initModels(){
 
 
 function use_phong() {
+
     gl.useProgram(defaultShaders);
     program = defaultShaders;
 
     updateVec4Uniform("lightDiffuse", pointLightProperties.diffuse);
     updateVec4Uniform("lightSpecular", pointLightProperties.specular);
     updateVec4Uniform("lightAmbient", pointLightProperties.ambient);
-    updateVec4Uniform("spotlightDiffuse", spotlightProperties.diffuse);
-    updateVec4Uniform("spotlightSpecular", spotlightProperties.specular);
-    updateVec4Uniform("spotlightAmbient", spotlightProperties.ambient);
-    updateVec3Uniform("spotlight_position", vec3(spotlightPosition));
-    updateVec3Uniform("spotlight_angle", vec3(spotlightAngle));
+    
+    updateVec3Uniform("lightPosition", lightPos);
 
     updateMat4Uniform("projectionMatrix", projectionMatrix);
     updateMat4Uniform("cameraViewMatrix", cameraViewMatrix);
 }
-
