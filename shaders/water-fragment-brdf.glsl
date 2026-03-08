@@ -8,10 +8,17 @@ uniform highp uint wave_count;
 uniform mat4 cameraViewMatrix;
 uniform mat4 transformMatrix;
 uniform samplerCube skybox;
+uniform vec4 lightPosition;
+uniform vec3 spotlightPosition;
+uniform mat4 lightViewMatrix;
+uniform mat4 lightProjectionMatrix;
+uniform vec4 cameraPos;
+uniform sampler2D shadowMap;
 
 precision mediump float;
-uniform vec3 light_color;
-uniform vec3 spotlight_color;
+uniform vec4 pointlight_color;
+uniform vec4 spotlight_color;
+
 
 // these are all parameters affecting the water's appearance
 const vec4 water_color = vec4(0.0, 0.086, 0.204, 1.0);
@@ -23,9 +30,7 @@ const float k3 = 0.35; // idk I wrote this code like 7 months ago and chose some
 const float k4 = 20.15; // ditto
 const float air_bubble_density = 3.4; // the density of air bubbles within the water
 
-in vec3 vertex;
-in vec3 light_vector;
-in vec3 spotlight_vector;
+in vec3 vertex, fPos;
 uniform vec3 spotlightAngle;
 out vec4 fragColor;
 
@@ -40,6 +45,16 @@ struct Wave {
     highp float phaseMod;
 };
 
+
+float calculateShadow(vec4 positionShadow) {
+
+    vec3 shadowCoord = (positionShadow.xyz / positionShadow.w) * 0.5 + 0.5;
+    float closestDepth = texture(shadowMap, shadowCoord.xy).r;
+    float currentDepth = shadowCoord.z;
+
+    float bias = 0.0001;
+    return currentDepth - bias > closestDepth ? 0.5 : 1.0;
+}
 
 
 float expsine(vec2 uv, Wave w, out float x) {
@@ -143,11 +158,12 @@ void brdf_lighting(in vec3 light, in vec3 light_color, in vec3 view, in mat4 vie
 
 void main() {
     float dist = length(vertex.xyz);
-    float wave_height;
+    float wave_height = 0.0;
     vec2 derivatives = vec2(0.0);
     float displacement = 0.0;
     vec2 prev_derivs = vec2(0.0);
-    vec2 uv = (inverse(cameraViewMatrix) * vec4(vertex, 1.0)).xz;
+    vec4 worldVert = vec4(fPos,1.0);
+    vec2 uv = worldVert.xz;
     vec4 color = vec4(0);
     vec3 view = -normalize(vertex);
 
@@ -160,7 +176,18 @@ void main() {
 
         derivatives += prev_derivs;
     }
-    wave_height = displacement;
+    worldVert.xz = uv;
+
+    float d = distance(cameraPos, worldVert);
+
+    float fadeStart = 50.0;
+    float fadeEnd   = 200.0;
+
+    float dist_factor = clamp((fadeEnd - d) / (fadeEnd - fadeStart), 0.0, 1.0);
+    wave_height = displacement * pow(dist_factor, 0.9);
+    worldVert.y += wave_height;
+
+
     vec3 albedo = water_color.rgb;
 
     vec3 model_normal = vec3(-derivatives.x, 1.0, -derivatives.y);
@@ -172,17 +199,24 @@ void main() {
     vec3 specular = vec3(0.0);
     vec3 diffuse = vec3(0.0);
 
+    vec3 light_vector = normalize((cameraViewMatrix * lightPosition).xyz - vertex.xyz);
+    vec3 spotlight_vector = normalize((cameraViewMatrix * vec4(spotlightPosition, 1.0)).xyz - vertex.xyz);
+    vec3 spotlightDirection = normalize((cameraViewMatrix * vec4(spotlightAngle, 0.0)).xyz);
+    vec4 fPositionShadow = lightProjectionMatrix * lightViewMatrix * worldVert;
 
-    brdf_lighting(light_vector, light_color, view, cameraViewMatrix, normal, wave_height, specular, diffuse);
-
-//    if(dot(spotlight_vector, -spotlightAngle) > 0.97)
-//    {
-        brdf_lighting(spotlight_vector, spotlight_color, view, cameraViewMatrix, normal, wave_height, specular, diffuse);
-//    }
+    brdf_lighting(light_vector, pointlight_color.rgb, view, cameraViewMatrix, normal, wave_height, specular, diffuse);
+    float shadow = calculateShadow(fPositionShadow);
+    specular *= shadow;
+    diffuse *= shadow;
+    if(dot(spotlight_vector, -spotlightDirection) > 0.97)
+    {
+        brdf_lighting(spotlight_vector, spotlight_color.rgb, view, cameraViewMatrix, normal, wave_height, specular, diffuse);
+    }
 
     vec3 reflection_vector = reflect(vertex, normal);
-    vec3 ambient = 0.215 * texture(skybox, reflection_vector).xyz;
+    vec3 reflections = 0.315 * texture(skybox, reflection_vector).xyz;
 
-    fragColor = vec4((specular + albedo * diffuse + ambient), 1.0); //(specular + albedo * diffuse + ambient)
+
+    fragColor = vec4((specular + albedo * diffuse + reflections), 1.0); //(specular + albedo * diffuse + ambient)
 
 }

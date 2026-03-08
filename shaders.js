@@ -3,24 +3,22 @@ let skygram;
 
 let pointLightProperties = {
     specular: vec4(1.0, 1.0, 0.9, 1.0),
-    diffuse: vec4(1.0, 1.0, 0.95, 1.0),
-    ambient: vec4(1.0, 1.0, 0.99, 1.0)
-    // specular: vec4(0.0, 0.0, 0.0, 1.0),
-    // diffuse: vec4(0.0, 0.0, 0.0, 1.0),
-    // ambient: vec4(0.0, 0.0, 0.0, 1.0),
+    diffuse: vec4(1.0, 1.0, 0.95, 1.0)
 }
 
 let spotlightProperties = {
-    // specular: vec4(0.9, 0.9, 1.0, 1.0),
-    // diffuse: vec4(0.85, 0.85, 1.0, 1.0),
-    // ambient: vec4(0, 0, 0, 1.0)
-    specular: vec4(0.0, 0.0, 0.0, 1.0),
-    diffuse: vec4(0.0, 0.0, 0.0, 1.0),
-    ambient: vec4(0.0, 0.0, 0.0, 1.0),
+    specular: vec4(0.8, 0.8, 1.0, 1.0),
+    diffuse: vec4(0.6, 0.6, 1.0, 1.0)
 }
 
-let spotlightPosition = vec4(0, 0, 0, 1);
-let spotlightAngle = vec4(0);
+let ambientLight = vec4(0.67, 0.67, 0.67, 1.0);
+
+let spotlightBasePosition = vec4(-3, 9, 0, 1);
+let spotlightBaseDirectionVector = normalize(vec4(-1, 0, 0, 0));
+let spotlightPosition;
+let spotlightDirectionVector;
+
+let lightMult = 1.0;
 
 let mountain_scale = 10;
 let mountain_height = -52;
@@ -77,12 +75,23 @@ function use_phong() {
     gl.useProgram(defaultShaders);
     program = defaultShaders;
 
-    updateVec4Uniform("lightDiffuse", pointLightProperties.diffuse);
-    updateVec4Uniform("lightSpecular", pointLightProperties.specular);
-    updateVec4Uniform("lightAmbient", pointLightProperties.ambient);
+    let lightScale = scalem(lightMult, lightMult, lightMult);
+    updateVec4Uniform("pointlightDiffuse", mult(lightScale, pointLightProperties.diffuse));
+    updateVec4Uniform("pointlightSpecular", mult(lightScale, pointLightProperties.specular));
+    updateVec4Uniform("lightAmbient", ambientLight);
     
     updateVec3Uniform("lightPosition", lightPos);
 
-    updateMat4Uniform("projectionMatrix", projectionMatrix);
-    updateMat4Uniform("cameraViewMatrix", cameraViewMatrix);
+    updateVec4Uniform("spotlightDiffuse", spotlightProperties.diffuse);
+    updateVec4Uniform("spotlightSpecular", spotlightProperties.specular);
+
+    updateVec3Uniform("spotlightPosition", spotlightPosition);
+    updateVec3Uniform("spotlightAngle", spotlightDirectionVector);
+
+    updateMat4Uniform("lightViewMatrix", lightViewMatrix);
+    updateMat4Uniform("lightProjectionMatrix", lightProjectionMatrix);
+    updateIntUniform("shadowMap", 1);
+    updateIntUniform("texture0", 11);
+    updateIntUniform("texture1", 12);
+    updateIntUniform("texture2", 13);
 }

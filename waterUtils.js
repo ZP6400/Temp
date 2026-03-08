@@ -1,4 +1,6 @@
 let water_program;
+
+// Parameters for water generation
 const wave_count = 42;
 const baseFrequency = 0.1, baseAmplitude = 1.3, basePhase = 1, phaseModifier = 1.04, gain = 1.18, lacunarity = 0.82;
 let water;
@@ -15,12 +17,14 @@ class Wave {
 let curr_waves = [];
 let wave_texture;
 let water_height = -52;
-let cubemap;
-function init_water() {
+let cubeMap;
+function initWater() {
     water_program = initShadersFromFiles(gl, "shaders/water-vertex.glsl", "shaders/water-fragment-brdf.glsl");
     gl.useProgram(water_program);
     program = water_program;
-    let verts = plane(vec3(-200, -200), vec3(500, 500),7);
+
+    // water uses a flat horizontal plane to render
+    let verts = plane(vec3(-80, -160), vec3(500, 65),7);
     water = {
         vBuffer: initBuffer(verts),
         vCount: verts.length,
@@ -32,20 +36,13 @@ function init_water() {
 }
 
 
-let prevTime = 0;
-let scene_time = 0;
-function draw_water(timestamp) {
+
+function drawWater() {
 
     gl.useProgram(water_program);
     program = water_program;
-
-    let deltaTime = (timestamp - prevTime) / 1000;
-    if (Number.isFinite(deltaTime)) {
-        scene_time += deltaTime;
-    }
-    prevTime = timestamp;
-
     bindAttBuffer(water.vBuffer, "vPosition", 4);
+
     updateMat4Uniform("projectionMatrix", projectionMatrix);
     updateMat4Uniform("cameraViewMatrix", cameraViewMatrix);
     updateMat4Uniform("transformMatrix", translate(0, water_height, 0));
@@ -63,14 +60,16 @@ function draw_water(timestamp) {
 
     updateIntUniform("skybox", 3);
 
+    let lightScale = scalem(lightMult, lightMult, lightMult);
+
     updateVec4Uniform("lightPosition", vec4(lightPos[0], lightPos[1], lightPos[2], 1.0));
-    updateVec3Uniform("spotlight_position", vec3(spotlightPosition));
-    updateVec3Uniform("spotlight_angle", vec3(spotlightAngle));
+    updateVec3Uniform("spotlightPosition", vec3(spotlightPosition));
+    updateVec3Uniform("spotlightAngle", vec3(spotlightDirectionVector));
     updateVec4Uniform("cameraPos", vec4(camX, water_height, camZ, 1.0));
     updateFloatUniform("time", scene_time);
     updateUintUniform("wave_count", wave_count);
-    updateVec3Uniform("light_color", vec3(pointLightProperties.specular[0], pointLightProperties.specular[1], pointLightProperties.specular[2]));
-    updateVec3Uniform("spotlight_color", vec3(spotlightProperties.specular[0], spotlightProperties.specular[1], spotlightProperties.specular[2]));
+    updateVec4Uniform("pointlight_color", mult(lightScale, pointLightProperties.specular));
+    updateVec4Uniform("spotlight_color", spotlightProperties.specular);
 
     let render_mode = useWireframe ? gl.LINE_LOOP : gl.TRIANGLES;
 
@@ -78,11 +77,12 @@ function draw_water(timestamp) {
         gl.drawArrays(render_mode, i, 3);
 }
 
+// create a cubemap for skybox reflections
 let images = [];
 function configureCubeMap() {
-    cubemap = gl.createTexture();
+    cubeMap = gl.createTexture();
     gl.activeTexture(gl.TEXTURE3);
-    gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemap);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubeMap);
 
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -98,6 +98,7 @@ function configureCubeMap() {
     gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[5]);
 }
 
+// generate a collection of semi-random 2-dimensional sine waves using Fractional Brownian Motion
 function GenerateSineWaves() {
     curr_waves = [];
     let seed = 0.0;
@@ -125,7 +126,7 @@ function GenerateSineWaves() {
 
 }
 
-
+// write the generated sine waves to a texture for the water shader to read from
 function UpdateShaderWaves() {
     GenerateSineWaves();
     const floatsPerPixel = 3;

@@ -1,7 +1,6 @@
 #version 300 es
 
-uniform mat4 lightViewMatrix;
-uniform mat4 lightProjectionMatrix;
+
 
 in vec4 vPosition;
 uniform float time;
@@ -11,12 +10,9 @@ uniform uint wave_count;
 uniform mat4 cameraViewMatrix;
 uniform mat4 transformMatrix;
 uniform mat4 projectionMatrix;
-uniform vec4 lightPosition;
-uniform vec3 spotlightPosition;
 
-out vec4 fPositionShadow;
+out vec3 vertex, fPos;
 
-out vec3 vertex, light_vector, spotlight_vector;
 struct Wave {
 	vec2 direction;
 	highp float amplitude;
@@ -52,7 +48,7 @@ Wave get_wave(uint index, sampler2D waves){
 void main() {
 
 	vec4 worldVert = transformMatrix * vPosition;
-
+	fPos.y = worldVert.y;
 	vec2 derivatives = vec2(0.0);
 	float displacement = 0.0;
 	vec2 prev_derivs = vec2(0.0);
@@ -76,14 +72,10 @@ void main() {
 	float dist_factor = clamp((fadeEnd - d) / (fadeEnd - fadeStart), 0.0, 1.0);
 	worldVert.y += displacement * pow(dist_factor, 0.9);
 
-	fPositionShadow = lightProjectionMatrix * lightViewMatrix * worldVert;
-
+	fPos.xz = worldVert.xz;
 	worldVert = cameraViewMatrix * worldVert;
 
 	vertex = worldVert.xyz;
 
 	gl_Position = projectionMatrix * worldVert;
-
-	light_vector = normalize((cameraViewMatrix * lightPosition).xyz - vertex.xyz);
-	spotlight_vector = normalize((cameraViewMatrix * vec4(spotlightPosition, 1.0)).xyz - vertex.xyz);
 }

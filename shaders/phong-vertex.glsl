@@ -11,11 +11,12 @@ uniform mat4 lightViewMatrix;
 uniform mat4 lightProjectionMatrix;
 
 out vec3 light_vector, normal, vertex;
-out vec3 spotlight_vector;
+out vec3 spotlight_vector, spotlightDirection;
 out vec2 fTexCoord;
 
-out vec4 fPositionShadow; 
+out vec4 fPositionShadow;
 
+uniform vec3 spotlightAngle;
 uniform vec3 lightPosition;
 uniform vec3 spotlightPosition;
 
@@ -28,6 +29,7 @@ void main() {
     light_vector = normalize((cameraViewMatrix * vec4(lightPosition, 1.0)).xyz - pos);
 
     spotlight_vector = normalize((cameraViewMatrix * vec4(spotlightPosition, 1.0)).xyz - pos);
+    spotlightDirection = normalize((cameraViewMatrix * vec4(spotlightAngle, 0.0)).xyz);
 
     normal = normalize(cameraViewMatrix * transformMatrix * vNormal).xyz;
 
