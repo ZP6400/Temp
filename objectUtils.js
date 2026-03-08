@@ -359,23 +359,23 @@ function drawModel(model, modelMatrix, specularColor, diffuseColor) {
 
 // loads a texture for use in the material texture "array"
 // originally planned to use a texture2DArray but had too many issues getting it working
-function loadArrayTexture(url, texUnit) {
+ function loadArrayTexture(url, texUnit) {
 
     let texture = gl.createTexture();
     const image = new Image();
     image.crossOrigin = "anonymous";
 
     image.onload = function() {
+
         gl.activeTexture(texUnit);
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
         gl.generateMipmap(gl.TEXTURE_2D);
-
     };
 
     image.src = url;
     return texture;
-}
+} 
 
 function loadSkyboxTexture(url) {
 
@@ -416,9 +416,22 @@ function initShadowBuffer() {
 }
 
 function initTextureArray() {
+
+    let defaultTex = createDefaultTexture();
+
+    const units = [gl.TEXTURE11, gl.TEXTURE12, gl.TEXTURE13];
+
+    units.forEach(unit => {
+
+        gl.activeTexture(unit);
+        gl.bindTexture(gl.TEXTURE_2D, defaultTex);
+    });
+
     for (let [path, index] of textureIndexes) {
+
         let texUnit;
         switch (index) {
+
             case 0:
                 texUnit = gl.TEXTURE11;
                 break;
@@ -433,3 +446,29 @@ function initTextureArray() {
     }
 }
 
+
+function createDefaultTexture() {
+
+    let texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    const data = new Uint8Array([
+        0, 0, 255, 255,
+        255, 0, 0, 255,
+        0, 0, 255, 255,
+        0, 255, 0, 255
+    ]);
+
+    gl.texImage2D(
+        gl.TEXTURE_2D, 0, gl.RGBA, 
+        2, 2, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, data
+    );
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    return texture;
+}
